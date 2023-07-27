@@ -98,7 +98,7 @@ class BackboneBase(nn.Module):
         xs_original = OrderedDict()   # only rgb output
         
         x_rgb = tensor_list.tensors[:,0:3,:,:]
-        x_d = tensor_list.tensors[:,0:1,:,:]
+        x_d = tensor_list.tensors[:,3:,:,:]
         x_d = torch.cat((x_d,x_d,x_d), dim=1)
 
         x_rgb = self.body['conv1'](x_rgb)
