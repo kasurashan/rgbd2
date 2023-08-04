@@ -344,9 +344,10 @@ def main(gpu, ngpus_per_node, args):
                 for k,v in weight_copy.items():
                     #print(k) # 이름 detr.backbone.0.body.layer3.5.bn3.running_var
                     #print(v) # 실제 텐서
-                    if k[5:13] == 'backbone':
+                    if k[0:8] == 'backbone':
                         
-                        new_key = 'detr.backbone.0.body_d' + k[20:]
+                        new_key = 'backbone.0.body_d' + k[15:]
+                        print(new_key)
                         new_value = v
                         checkpoint['model'].update({new_key : new_value})
 
