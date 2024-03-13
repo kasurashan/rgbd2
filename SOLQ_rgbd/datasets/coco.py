@@ -47,55 +47,40 @@ class CocoDetection(TvCocoDetection):
                                             cache_mode=cache_mode, local_rank=local_rank, local_size=local_size)
         self._transforms = transforms
         self.prepare = ConvertCocoPolysToMask(return_masks)
-        self.depth_folder = depth_folder  ##
-        self.depth_data = depth_data  ##
+        self.depth_folder = depth_folder  
+        self.depth_data = depth_data  
 
     def __getitem__(self, idx):
         img, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
-        img_file_name = self.coco.loadImgs(image_id)[0]['file_name'] ##
+        img_file_name = self.coco.loadImgs(image_id)[0]['file_name']
 
         if self.depth_data == 'box':
-            depth_file = img_file_name.rstrip('.png') + '.npy'
+            depth_file = img_file_name.rstrip('.png').rstrip('.jpg') + '.npy'
             depth_data_path = str(self.depth_folder) + '/' + depth_file
             depth_data = np.load(depth_data_path)
             try:
-                depth_data = depth_data.squeeze()   #depth data에 [1,1,h,w]크기인 것도 섞여있어서 전부 [h,w]로 맞춤
+                depth_data = depth_data.squeeze()
             except:
                 pass
-            depth_img = Image.fromarray(depth_data, mode='F')   # mode = F 로 해야 floating point로 받음
+            depth_img = Image.fromarray(depth_data, mode='F')
             
         if self.depth_data == 'nyu':
-            #print(img_file_name)   # train/color/nyu_rgb_0816.png  
-            depth_file = '00' + img_file_name.lstrip('train/color/nyu_rgb_').lstrip('val/color/nyu_rgb_')
-            
-            #print(depth_file, 1111111111111)
+            depth_file = img_file_name.lstrip('train/color/nyu_rgb_').lstrip('val/color/nyu_rgb_')
+            depth_file = depth_file.zfill(10)  # 10자리로 맞춰주면서 왼쪽에 0 추가
             depth_data_path = str(self.depth_folder) + '/' + depth_file
             depth_data = Image.open(depth_data_path)
-            #print(np.array(depth_data).shape)   # (480 640)
-            #print(np.array(depth_data))   # 원소가 정수형으로 1990, 1040, 2000 이런식인ㄷㅅ
-            #print(np.array(depth_data))
-            #depth_img = Image.fromarray(np.array(depth_data), mode='F')   # float으로
             depth_img = np.array(depth_data).astype(np.float32)
             depth_img = depth_img / np.max(depth_img) * 255
             depth_img = Image.fromarray(depth_img)
-            # print(np.array(depth_img))
 
         if self.depth_data == 'scan':
-            #print(img_file_name)   # train/color/nyu_rgb_0816.png  
             depth_file = img_file_name[0:12] + '/depth/' + img_file_name[-10:-4] + '.png'
-            
-            #print(depth_file, 1111111111111)
             depth_data_path = str(self.depth_folder) + '/' + depth_file
             depth_data = Image.open(depth_data_path)
-            #print(np.array(depth_data).shape)   # (480 640)
-            #print(np.array(depth_data))   # 원소가 정수형으로 1990, 1040, 2000 이런식인ㄷㅅ
-            #print(np.array(depth_data))
-            #depth_img = Image.fromarray(np.array(depth_data), mode='F')   # float으로
             depth_img = np.array(depth_data).astype(np.float32)
             depth_img = depth_img / np.max(depth_img) * 255
             depth_img = Image.fromarray(depth_img)
-            # print(np.array(depth_img))
         
         
         
@@ -267,3 +252,38 @@ def build(image_set, args):
                             cache_mode=args.cache_mode, local_rank=get_local_rank(), local_size=get_local_size())
     
     return dataset
+
+
+
+
+def build_original(image_set, args):
+    root = Path(args.coco_path)
+    assert root.exists(), f'provided COCO path {root} does not exist'
+    mode = 'instances'
+    PATHS = {
+        "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
+        "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
+    }
+
+    img_folder, ann_file = PATHS[image_set] ##
+    dataset = CocoDetection_original(img_folder, ann_file, transforms=None, return_masks=args.masks,
+                            cache_mode=args.cache_mode, local_rank=get_local_rank(), local_size=get_local_size())
+    
+    return dataset
+
+
+class CocoDetection_original(TvCocoDetection):
+    def __init__(self, img_folder, ann_file, transforms, return_masks, cache_mode=False, local_rank=0, local_size=1):
+        super(CocoDetection_original, self).__init__(img_folder, ann_file,
+                                            cache_mode=cache_mode, local_rank=local_rank, local_size=local_size)
+        self._transforms = transforms
+        self.prepare = ConvertCocoPolysToMask(return_masks)
+
+    def __getitem__(self, idx):
+        img, target = super(CocoDetection_original, self).__getitem__(idx)
+        image_id = self.ids[idx]
+        target = {'image_id': image_id, 'annotations': target}
+        img, target = self.prepare(img, target)
+        if self._transforms is not None:
+            img, target = self._transforms(img, target)
+        return img, target
